@@ -25,7 +25,6 @@ const (
 	batchSize      = 10
 	cwHighResLabel = "__cw_high_res"
 	cwUnitLabel    = "__cw_unit"
-	acceptHeader   = `application/vnd.google.protobuf;proto=io.prometheus.client.MetricFamily;encoding=delimited;q=0.7,text/plain;version=0.0.4;q=0.3`
 )
 
 // Config defines configuration options
@@ -51,6 +50,8 @@ type Config struct {
 	// Prometheus scrape URL
 	PrometheusScrapeUrl string
 
+	Token string
+
 	// Path to Certificate file
 	PrometheusCertPath string
 
@@ -62,6 +63,7 @@ type Config struct {
 
 	// Additional dimensions to send to CloudWatch
 	AdditionalDimensions map[string]string
+
 }
 
 // Bridge pushes metrics to AWS CloudWatch
@@ -72,6 +74,7 @@ type Bridge struct {
 	prometheusScrapeUrl           string
 	prometheusCertPath            string
 	prometheusKeyPath             string
+	token           			  string									
 	prometheusSkipServerCertCheck bool
 	additionalDimensions          map[string]string
 }
@@ -90,6 +93,7 @@ func NewBridge(c *Config) (*Bridge, error) {
 		return nil, errors.New("PrometheusScrapeUrl required")
 	}
 	b.prometheusScrapeUrl = c.PrometheusScrapeUrl
+	b.token 			  = c.Token
 
 	b.prometheusCertPath = c.PrometheusCertPath
 	b.prometheusKeyPath = c.PrometheusKeyPath
@@ -143,7 +147,7 @@ func (b *Bridge) Run(ctx context.Context) {
 		case <-ticker.C:
 			mfChan := make(chan *dto.MetricFamily, 1024)
 
-			go fetchMetricFamilies(b.prometheusScrapeUrl, mfChan, b.prometheusCertPath, b.prometheusKeyPath, b.prometheusSkipServerCertCheck)
+			go fetchMetricFamilies(b.prometheusScrapeUrl, mfChan, b.prometheusCertPath, b.prometheusKeyPath, b.prometheusSkipServerCertCheck, b.token)
 
 			var metricFamilies []*dto.MetricFamily
 			for mf := range mfChan {
@@ -293,7 +297,7 @@ func getUnit(m model.Metric) string {
 func fetchMetricFamilies(
 	url string, ch chan<- *dto.MetricFamily,
 	certificate string, key string,
-	skipServerCertCheck bool,
+	skipServerCertCheck bool, token string,
 ) {
 	defer close(ch)
 	var transport *http.Transport
@@ -314,15 +318,17 @@ func fetchMetricFamilies(
 		}
 	}
 	client := &http.Client{Transport: transport}
-	decodeContent(client, url, ch)
+	decodeContent(client, url, ch, token)
 }
 
-func decodeContent(client *http.Client, url string, ch chan<- *dto.MetricFamily) {
+func decodeContent(client *http.Client, url string, ch chan<- *dto.MetricFamily, token string) {
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		log.Fatalf("prometheus-to-cloudwatch: Error: creating GET request for URL %q failed: %s", url, err)
 	}
-	req.Header.Add("Accept", acceptHeader)
+	BearerToken := "Bearer "
+	BearerToken += token
+	req.Header.Add("Authorization", BearerToken)
 	resp, err := client.Do(req)
 	if err != nil {
 		log.Fatalf("prometheus-to-cloudwatch: Error: executing GET request for URL %q failed: %s", url, err)
