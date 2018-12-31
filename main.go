@@ -23,6 +23,7 @@ var (
 	keyPath                  = flag.String("key_path", os.Getenv("KEY_PATH"), "Path to Key file (when using SSL for `prometheus_scrape_url`)")
 	skipServerCertCheck      = flag.String("accept_invalid_cert", os.Getenv("ACCEPT_INVALID_CERT"), "Accept any certificate during TLS handshake. Insecure, use only for testing")
 	additionalDimension      = flag.String("additional_dimension", os.Getenv("ADDITIONAL_DIMENSION"), "Additional dimension specified by NAME=VALUE")
+	token      		 = flag.String("token", os.Getenv("TOKEN"), "token value by NAME=VALUE")
 )
 
 func main() {
@@ -71,6 +72,7 @@ func main() {
 		PrometheusKeyPath:             *keyPath,
 		PrometheusSkipServerCertCheck: skipCertCheck,
 		AwsAccessKeyId:                *awsAccessKeyId,
+		Token:						   *token,
 		AwsSecretAccessKey:            *awsSecretAccessKey,
 		AdditionalDimensions:          additionalDimensions,
 	}
